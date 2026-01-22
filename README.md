@@ -12,6 +12,8 @@ This repository contains comprehensive Python tutorials designed for junior ML/D
 | [polars_production_tutorial.py](polars_production_tutorial.py) | Modern DataFrame library (10-100x faster than pandas) | Lazy evaluation, ETL patterns |
 | [sql_production_tutorial.py](sql_production_tutorial.py) | SQL patterns for production databases | Window functions, analytics |
 | [python_logic_patterns_tutorial.py](python_logic_patterns_tutorial.py) | Clever Python patterns and tricks | Sets, validation, performance |
+| [pyspark_production_tutorial.py](pyspark_production_tutorial.py) | Distributed computing with PySpark | Big data, clusters, window functions |
+| [pyspark_databricks_tutorial.py](pyspark_databricks_tutorial.py) | Enterprise Spark with Databricks | Delta Lake, MLflow, production patterns |
 
 ---
 
@@ -159,22 +161,165 @@ python python_logic_patterns_tutorial.py
 
 ---
 
+## 5. PySpark Production Tutorial
+
+**File:** `pyspark_production_tutorial.py`
+
+Distributed computing with Apache Spark - industry standard for big data pipelines.
+
+### Why PySpark?
+- Process terabytes/petabytes of data
+- Distributed computing across clusters
+- Native integration with cloud platforms (AWS EMR, Databricks, GCP Dataproc)
+- SQL + DataFrame + ML unified API
+
+### Sections
+
+| Section | Topics |
+|---------|--------|
+| 1 | **SparkSession** - Configuration, DataFrame creation, explicit schemas |
+| 2 | **Data I/O** - Reading/writing CSV, Parquet, Delta Lake |
+| 3 | **Transformations** - withColumn, filter, conditional logic, string operations |
+| 4 | **Aggregations** - GroupBy, pivot tables, rollup/cube for OLAP |
+| 5 | **Window Functions** - Ranking, running totals, LAG/LEAD, percentiles |
+| 6 | **Joins** - Inner, left, right, anti, semi, broadcast joins |
+| 7 | **Spark SQL** - SQL queries, CTEs, complex analytics |
+| 8 | **Performance** - Caching, partitioning, broadcast, explain plans |
+| 9 | **UDFs** - User defined functions, Pandas UDFs, complex types (arrays, maps, structs) |
+| 10 | **Production Patterns** - Schema validation, data quality, incremental processing, SCD Type 2 |
+| 11 | **Interview Exercises** - Top N per group, sessionization, gap analysis, pivot/unpivot |
+
+### Key Syntax Comparison
+
+| Operation | Pandas | PySpark |
+|-----------|--------|---------|
+| Filter | `df[df['col'] > 0]` | `df.filter(F.col('col') > 0)` |
+| Select | `df[['a', 'b']]` | `df.select('a', 'b')` |
+| New column | `df['new'] = df['a'] * 2` | `df.withColumn('new', F.col('a') * 2)` |
+| GroupBy | `df.groupby('a')['b'].sum()` | `df.groupBy('a').agg(F.sum('b'))` |
+| Rename | `df.rename(columns={'a': 'b'})` | `df.withColumnRenamed('a', 'b')` |
+
+### Run
+```bash
+pip install pyspark
+python pyspark_production_tutorial.py
+```
+
+---
+
+## 6. PySpark + Databricks Enterprise Tutorial
+
+**File:** `pyspark_databricks_tutorial.py`
+
+Leverage your company's existing Spark/Databricks infrastructure to stand out.
+
+### Why This Matters
+- Your company PAYS for Spark clusters - they want you to use them!
+- Knowing Databricks-specific features makes you more valuable
+- Enterprise features = production-ready code = promotions
+
+### Sections
+
+| Section | Topics |
+|---------|--------|
+| 1 | **Leveraging Infrastructure** - What your cluster gives you for free |
+| 2 | **Delta Lake** - ACID transactions, time travel, MERGE/upsert |
+| 3 | **Databricks Features** - dbutils, display(), %sql magic, Autoloader |
+| 4 | **Production Patterns** - Medallion architecture (Bronze/Silver/Gold), incremental processing, SCD Type 2 |
+| 5 | **Performance at Scale** - Partitioning, Z-ordering, caching, Photon engine |
+| 6 | **ML Integration** - MLflow tracking, Model Registry, Feature Store |
+| 7 | **Job Scheduling** - Workflows, notebook orchestration, Delta Live Tables |
+| 8 | **Real-World Patterns** - Sessionization, funnel analysis, cohort retention |
+| 9 | **Interview Tips** - How to talk about infrastructure in interviews |
+| 10 | **Cheat Sheet** - Quick reference for daily use |
+
+### Key Delta Lake Operations
+
+```python
+# Time Travel - Query historical data
+df = spark.read.format("delta").option("versionAsOf", 5).load("/path")
+
+# MERGE (Upsert) - Update + Insert in one operation
+delta_table.alias("t").merge(
+    updates.alias("s"), "t.id = s.id"
+).whenMatchedUpdateAll().whenNotMatchedInsertAll().execute()
+
+# Optimize with Z-Ordering
+OPTIMIZE delta.`/path` ZORDER BY (user_id, date)
+```
+
+### Run
+```bash
+python pyspark_databricks_tutorial.py
+```
+
+---
+
+## Choosing the Right Tool: Polars vs PySpark
+
+### Decision Matrix
+
+| Aspect | Polars | PySpark |
+|--------|--------|---------|
+| **Data Size** | < 100GB (fits in RAM) | > 100GB (distributed) |
+| **Infrastructure** | None needed | Requires cluster |
+| **Speed (small data)** | Very fast | Slow (overhead) |
+| **Speed (big data)** | Limited by RAM | Fast (distributed) |
+| **Learning Curve** | Easier | Medium |
+| **Cost** | Free | Cluster costs |
+
+### When to Use Each
+
+```
+                        Data Size
+    ┌─────────────────────────────────────────────────┐
+    │   < 1GB        1-100GB         > 100GB          │
+    │     │             │               │             │
+    │     ▼             ▼               ▼             │
+    │  ┌──────┐    ┌─────────┐    ┌──────────┐       │
+    │  │Pandas│    │ Polars  │    │ PySpark  │       │
+    │  └──────┘    └─────────┘    └──────────┘       │
+    └─────────────────────────────────────────────────┘
+```
+
+### Recommendation by Situation
+
+| Your Situation | Best Choice |
+|----------------|-------------|
+| Learning / Portfolio projects | **Polars** |
+| Interview preparation | **PySpark** (more asked) |
+| Job at startup (< 100GB data) | **Polars** |
+| Job at enterprise with Databricks | **PySpark** |
+| Need to process 500GB+ daily | **PySpark** |
+
+**Bottom Line:** Learn BOTH - concepts are the same, only syntax differs!
+
+---
+
 ## Interview Topics Covered
 
 These tutorials cover common interview topics for ML/Data Engineer positions:
 
 | Topic | Tutorial(s) |
 |-------|-------------|
-| RFM Segmentation | Polars, SQL |
-| Cohort Analysis & Retention | SQL |
-| Funnel/Conversion Analysis | SQL |
-| Window Functions | Polars, SQL |
-| Sessionization | Polars, SQL |
-| Data Quality/Validation | Python Logic, Polars |
+| RFM Segmentation | Polars, SQL, PySpark |
+| Cohort Analysis & Retention | SQL, PySpark Databricks |
+| Funnel/Conversion Analysis | SQL, PySpark Databricks |
+| Window Functions | Polars, SQL, PySpark |
+| Sessionization | Polars, SQL, PySpark, PySpark Databricks |
+| Data Quality/Validation | Python Logic, Polars, PySpark |
 | Set Operations | Python Logic |
 | Performance Optimization | All |
-| ETL Patterns | Polars, Python Logic |
+| ETL Patterns | Polars, Python Logic, PySpark |
 | Error Handling | Python ML |
+| Distributed Computing | PySpark, PySpark Databricks |
+| Broadcast Joins | PySpark |
+| UDFs & Pandas UDFs | PySpark |
+| Delta Lake & ACID | PySpark Databricks |
+| Medallion Architecture | PySpark Databricks |
+| MLflow & Model Registry | PySpark Databricks |
+| Time Travel | PySpark Databricks |
+| SCD Type 2 | SQL, PySpark Databricks |
 
 ---
 
@@ -210,7 +355,7 @@ A >= B     # False     Superset check
 
 1. Install dependencies:
 ```bash
-pip install pandas numpy polars
+pip install pandas numpy polars pyspark
 ```
 
 2. Run any tutorial:
@@ -236,8 +381,27 @@ python <tutorial_file>.py
 8. **Window functions** are essential for ML feature engineering
 9. **Lazy evaluation** (Polars) optimizes complex pipelines
 10. **CTEs** make SQL readable and maintainable
+11. **Broadcast joins** for small tables in PySpark
+12. **Explicit schemas** are mandatory in production Spark jobs
+13. **Pandas UDFs** are much faster than regular PySpark UDFs
+14. **Delta Lake** gives you ACID, time travel, and MERGE for free
+15. **Medallion architecture** (Bronze/Silver/Gold) is the enterprise standard
+16. **MLflow** is built into Databricks - track everything!
+
+---
+
+## Syntax Comparison: Pandas vs Polars vs PySpark
+
+| Operation | Pandas | Polars | PySpark |
+|-----------|--------|--------|---------|
+| Filter | `df[df['col'] > 0]` | `df.filter(pl.col('col') > 0)` | `df.filter(F.col('col') > 0)` |
+| Select | `df[['a', 'b']]` | `df.select(['a', 'b'])` | `df.select('a', 'b')` |
+| New column | `df['new'] = df['a'] * 2` | `df.with_columns((pl.col('a') * 2).alias('new'))` | `df.withColumn('new', F.col('a') * 2)` |
+| GroupBy | `df.groupby('a')['b'].sum()` | `df.group_by('a').agg(pl.col('b').sum())` | `df.groupBy('a').agg(F.sum('b'))` |
+| Rename | `df.rename(columns={'a': 'b'})` | `df.rename({'a': 'b'})` | `df.withColumnRenamed('a', 'b')` |
+| Join | `df1.merge(df2, on='key')` | `df1.join(df2, on='key')` | `df1.join(df2, 'key')` |
+| Sort | `df.sort_values('col')` | `df.sort('col')` | `df.orderBy('col')` |
 
 ---
 
 *Practice these patterns - they appear in 90% of data engineering interviews!*
-# DE-Training
