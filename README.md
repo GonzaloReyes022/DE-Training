@@ -12,6 +12,7 @@ This repository contains comprehensive Python tutorials designed for junior ML/D
 | [polars_production_tutorial.py](polars_production_tutorial.py) | Modern DataFrame library (10-100x faster than pandas) | Lazy evaluation, ETL patterns |
 | [sql_production_tutorial.py](sql_production_tutorial.py) | SQL patterns for production databases | Window functions, analytics |
 | [python_logic_patterns_tutorial.py](python_logic_patterns_tutorial.py) | Clever Python patterns and tricks | Sets, validation, performance |
+| [python_interview_exercises.py](python_interview_exercises.py) | **Interview prep exercises** | Data structures, algorithms, Big O |
 | [pyspark_production_tutorial.py](pyspark_production_tutorial.py) | Distributed computing with PySpark | Big data, clusters, window functions |
 | [pyspark_databricks_tutorial.py](pyspark_databricks_tutorial.py) | Enterprise Spark with Databricks | Delta Lake, MLflow, production patterns |
 
@@ -161,7 +162,71 @@ python python_logic_patterns_tutorial.py
 
 ---
 
-## 5. PySpark Production Tutorial
+## 5. Python Interview Exercises
+
+**File:** `python_interview_exercises.py`
+
+Comprehensive interview preparation with 30+ exercises covering the "4 sacred data structures" and classic coding challenges.
+
+### Why This Tutorial?
+
+- Covers the **exact patterns** asked in Data Engineer interviews
+- Focus on **Big O complexity** - crucial for interview discussions
+- Real-world scenarios: ETL, data cleaning, JOINs without pandas
+- Classic algorithms: Two Sum, FizzBuzz, frequency counters
+
+### Sections
+
+| Section | Topics |
+|---------|--------|
+| 1 | **Data Structures** - Lists (O(n) vs O(1)), Dicts (hash tables), Sets (membership), Tuples (immutability) |
+| 2 | **Pythonic Code** - List comprehensions, generators (`yield`), `enumerate/zip`, error handling |
+| 3 | **String Manipulation** - `split/join`, `strip`, f-strings, regex patterns |
+| 4 | **Classic Interview Exercises** - FizzBuzz, frequency counter, Two Sum O(n), anagrams, palindromes |
+| 5 | **Real DE Cases** - Manual JOINs with dicts, GROUP BY without pandas, deduplication, mini ETL pipeline |
+| 6 | **Performance Tips** - When to use each data structure, Big O comparison table |
+
+### Key Patterns
+
+```python
+# Frequency counter (appears in 80% of interviews)
+conteo = {}
+for item in data:
+    conteo[item] = conteo.get(item, 0) + 1
+
+# Two Sum O(n) - classic interview question
+def two_sum(nums, target):
+    seen = {}
+    for i, num in enumerate(nums):
+        if target - num in seen:
+            return (seen[target - num], i)
+        seen[num] = i
+
+# Manual JOIN with lookup table (shows you understand JOINs deeply)
+lookup = {u['id']: u for u in users}
+result = [{**order, **lookup[order['user_id']]}
+          for order in orders if order['user_id'] in lookup]
+```
+
+### Big O Complexity Reference
+
+| Operation | List | Dict | Set |
+|-----------|------|------|-----|
+| Access by index | O(1) | - | - |
+| Search | O(n) | O(1) | O(1) |
+| Insert | O(n)* | O(1) | O(1) |
+| Delete | O(n) | O(1) | O(1) |
+
+*O(1) for append at end
+
+### Run
+```bash
+python python_interview_exercises.py
+```
+
+---
+
+## 6. PySpark Production Tutorial
 
 **File:** `pyspark_production_tutorial.py`
 
@@ -207,7 +272,7 @@ python pyspark_production_tutorial.py
 
 ---
 
-## 6. PySpark + Databricks Enterprise Tutorial
+## 7. PySpark + Databricks Enterprise Tutorial
 
 **File:** `pyspark_databricks_tutorial.py`
 
@@ -302,16 +367,22 @@ These tutorials cover common interview topics for ML/Data Engineer positions:
 
 | Topic | Tutorial(s) |
 |-------|-------------|
+| **Data Structures (Lists, Dicts, Sets)** | **Interview Exercises**, Python Logic |
+| **Big O Complexity** | **Interview Exercises** |
+| **Classic Algorithms (Two Sum, FizzBuzz)** | **Interview Exercises**, Python Logic |
+| **Manual JOINs/GROUP BY** | **Interview Exercises** |
 | RFM Segmentation | Polars, SQL, PySpark |
 | Cohort Analysis & Retention | SQL, PySpark Databricks |
 | Funnel/Conversion Analysis | SQL, PySpark Databricks |
 | Window Functions | Polars, SQL, PySpark |
 | Sessionization | Polars, SQL, PySpark, PySpark Databricks |
-| Data Quality/Validation | Python Logic, Polars, PySpark |
-| Set Operations | Python Logic |
+| Data Quality/Validation | Python Logic, Polars, PySpark, Interview Exercises |
+| Set Operations | Python Logic, Interview Exercises |
 | Performance Optimization | All |
-| ETL Patterns | Polars, Python Logic, PySpark |
-| Error Handling | Python ML |
+| ETL Patterns | Polars, Python Logic, PySpark, Interview Exercises |
+| Error Handling | Python ML, Interview Exercises |
+| Generators & Memory Efficiency | Interview Exercises |
+| String Manipulation | Interview Exercises |
 | Distributed Computing | PySpark, PySpark Databricks |
 | Broadcast Joins | PySpark |
 | UDFs & Pandas UDFs | PySpark |
@@ -387,6 +458,10 @@ python <tutorial_file>.py
 14. **Delta Lake** gives you ACID, time travel, and MERGE for free
 15. **Medallion architecture** (Bronze/Silver/Gold) is the enterprise standard
 16. **MLflow** is built into Databricks - track everything!
+17. **Know Big O complexity** - interviewers WILL ask about it
+18. **`dict.get(key, default)`** avoids KeyError and is interview gold
+19. **Generators (`yield`)** for memory-efficient processing of large files
+20. **Manual JOINs with dicts** show deep understanding of how JOINs work
 
 ---
 

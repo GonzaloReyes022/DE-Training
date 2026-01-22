@@ -674,6 +674,28 @@ run_query(conn, """
     ORDER BY user_id, order_date
 """, "SOLUTION 3.2: Order Sequence Analysis with LAG/LEAD")
 
+run_query(conn, """
+          SELECT
+            user_id,
+            order_id,
+            order_date,
+            julianday(LEAD(order_date,1) OVER(PARTITION BY user_id ORDER BY order_date))- julianday(order_date) as days_until_next_order,
+            CASE WHEN
+                total_amount > LEAD(total_amount,1) OVER(PARTITION BY user_id ORDER BY order_date)
+                THEN 'Smaller' 
+                WHEN total_amount < LEAD(total_amount,1) OVER(PARTITION BY user_id ORDER BY order_date)
+                THEN 'Larger'
+                ELSE 'Last/smaller' END as next_order_wasmaller_or_larger,
+            AVG(total_amount) OVER(PARTITION BY user_id ORDER BY order_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) as avg_up_to_that_point,
+            total_amount
+          FROM orders
+          WHERE status = 'completed'
+          ORDER BY user_id, order_date DESC
+          """, " MY solution 3.2: Order Sequence Analysis with LAG/LEAD")
+#se podria haber hecho con una CTE en la cual se calculaban el
+#siguente dia a ser un pedido, el costo de tal y avg_up_to_that_point
+# de esta forma luego la llamamos en una query normal y queda mas legible.
+#no se manejo el caso del ultimo celda para smaller/larger y ademas no se debe usar RANGE sino ROW
 
 # EXERCISE 3.3: Find users whose order amounts are consistently increasing
 # (each order is larger than the previous one)
@@ -718,6 +740,57 @@ run_query(conn, """
     ORDER BY up.all_increasing DESC, up.total_orders DESC
 """, "SOLUTION 3.3: Users with Consistently Increasing Orders")
 
+run_query(conn, """
+
+WITH order_comparisons AS (
+    -- ... tu CTE estaba bien en lógica, quitando lo del ROWS BETWEEN ...
+    SELECT 
+        user_id,
+        CASE 
+            WHEN total_amount > LAG(total_amount) OVER(PARTITION BY user_id ORDER BY order_date) THEN 1 -- Subió
+            WHEN LAG(total_amount) OVER(PARTITION BY user_id ORDER BY order_date) IS NULL THEN 1 -- Es el primero (Neutro/Bien)
+            ELSE 0 -- Bajó (Malo)
+        END as is_good
+    FROM orders
+    WHERE status = 'completed'
+)
+SELECT user_id
+FROM order_comparisons
+GROUP BY user_id                 -- 1. Agrupamos
+HAVING MIN(is_good) = 1          -- 2. Verificamos que NUNCA haya tenido un 0
+   AND COUNT(*) >= 2;            -- 3. Verificamos que tenga historial suficiente
+
+        
+          """, "My solution excercise 3.3: Users with Consistently Increasing Orders")
+
+
+    # WITH order_comparisons AS (
+    #     SELECT
+    #       user_id,
+    #       CASE WHEN (total_amount - LAG(total_amount,1)
+    #             OVER(PARTITION BY user_id ORDER BY order_date 
+    #             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) ) > 0
+    #             THEN 'increasing'
+    #             WHEN LAG(total_amount,1)
+    #             OVER(PARTITION BY user_id ORDER BY order_date 
+    #             ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) IS NULL
+    #             THEN 'first row'
+    #             ELSE 'decreasing' END as is_increasing
+    # FROM orders
+    # WHERE status = 'completed'
+    # ORDER BY user_id, order_date ) 
+    # SELECT
+    #       user_id
+    # FROM order_comparisons
+    # WHERE is_increasing NOT IN ('decreasing') 
+
+#solucion arregla, la que esta comentada fue el primer intento, problemas, intente
+#filtrar por decresing, pero termine eliminando las filas que las tenian por ende
+#ningun usuario fue filtrado para la pregunta!
+#LAG LEAD no necesitas ROWS between ...
+#Se maneja el caso de que es primero(si es lag) o ultimo (lead), teniendo en cuenta
+#que devolverian nullos para estos casos
+
 
 # EXERCISE 3.4: Create a "Top 3 orders per user" report
 # Show only the 3 highest value orders for each user
@@ -755,6 +828,27 @@ run_query(conn, """
     ORDER BY username, order_rank
 """, "SOLUTION 3.4: Top 3 Orders per User")
 
+
+run_query(conn, """
+        WITH user_orders AS(   
+           SELECT
+            u.username,
+            o.total_amount,
+            o.order_date,
+            SUM(o.total_amount) OVER(PARTITION BY o.user_id) as total_spend,
+          -- 1. Calculamos el ranking AQUÍ ADENTRO (creamos la columna)
+            ROW_NUMBER() OVER(PARTITION BY u.username ORDER BY o.total_amount DESC) as ranking
+            FROM users u
+            JOIN orders o ON u.user_id = o.user_id
+            WHERE o.status = 'completed'
+            ORDER BY u.username, o.total_amount DESC)
+          
+            SELECT 
+                *,
+                RANK() OVER( ORDER BY total_spend) as user_rank
+            FROM user_orders 
+            WHERE ranking < 4
+          ""","EXERCISE 3.4: Create a Top 3 orders per user report")
 # =============================================================================
 # SECTION 4: CTEs and Subqueries - Code Organization
 # =============================================================================
