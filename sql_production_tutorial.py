@@ -26,7 +26,7 @@ def setup_database():
     """Create a production-like database schema with sample data."""
     conn = sqlite3.connect(":memory:")  # In-memory for tutorial
     cursor = conn.cursor()
-
+    #cursor?
     # --- Create Tables ---
 
     # Users table (dimension table)
@@ -243,14 +243,23 @@ run_query(conn, """
 
 """
 YOUR QUERY HERE:
-
-SELECT
-    ...
-FROM order_items oi
-JOIN ...
-WHERE ...
-GROUP BY ...
 """
+
+
+run_query(conn, """
+    SELECT
+        p.category,
+        SUM(oi.quantity * oi.unit_price) as total_revenue,
+        AVG(oi.quantity * oi.unit_price) as ag_order_value,
+        COUNT(DISTINCT oi.order_id) as num_orders
+    FROM order_items oi
+    JOIN orders o ON oi.order_id = o.order_id
+    JOIN products p ON oi.product_id = p.product_id
+    WHERE o.status = 'completed'
+    GROUP BY p.category
+    ORDER BY total_revenue DESC
+""", "EXERCISE 1.1")
+
 
 
 # =============================================================================
@@ -334,7 +343,142 @@ run_query(conn, """
 """
 YOUR QUERY HERE:
 """
+run_query(conn, """
+        SELECT
+         p.product_name
+        FROM products p
+        LEFT JOIN order_items oi ON p.product_id = oi.product_id
+        WHERE oi.product_id IS NULL
 
+          """, "SOLUTION 2.1: Products Never Ordered")
+
+#despues del Left Join agregar, LEFT JOIN orders o ON oi.order_id = o.order_id AND o.status='completed'
+#A diferencia del la query original que pide productops que nunca fueron ordenados
+#esto haria de productos que nunca generaron plata
+
+# EXERCISE 2.2: Find users who have orders but have NEVER completed one
+# (all their orders are pending or cancelled)
+# Hint: Use LEFT JOIN with condition and check for NULL
+run_query(conn, """
+    SELECT
+          u.user_id as user_id,
+          u.username as username
+    FROM orders o
+    JOIN users u ON o.user_id = u.user_id
+    GROUP BY u.user_id, u.username
+    HAVING(COUNT(CASE WHEN o.status= 'completed' THEN 1 END)= 0)
+    ORDER BY u.user_id 
+""", "EXERCISE 2.2: Find users who have orders but have NEVER completed one")
+
+
+"""
+YOUR QUERY HERE:
+"""
+run_query(conn, """
+    SELECT
+        u.user_id,
+        u.username,
+        COUNT(o.order_id) as total_orders,
+        COUNT(CASE WHEN o.status = 'completed' THEN 1 END) as completed_orders
+    FROM users u
+    JOIN orders o ON u.user_id = o.user_id
+    GROUP BY u.user_id, u.username
+    HAVING COUNT(CASE WHEN o.status = 'completed' THEN 1 END) = 0
+""", "SOLUTION 2.2: Users with Orders but None Completed")
+
+
+# EXERCISE 2.3: Create a report showing each order with:
+# - User info (username, tier)
+# - Product info (product_name, category)
+# - Order info (order_date, quantity, line_total)
+# - Running total  per user (sum of all previous orders)
+# Hint: Multiple JOINs + Window Function
+
+run_query(conn, """
+    SELECT
+          DISTINCT u.username as username,
+          u.tier as tier,
+          p.product_name as product_name,
+          p.category as category,
+          o.order_date as order_date,
+          oi.quantity as quantity,
+        (oi.quantity * oi.unit_price) as line_total,
+        SUM(oi.quantity * oi.unit_price) OVER(PARTITION BY u.user_id
+        ORDER BY o.order_date)as total_per_user
+    FROM order_items oi
+    JOIN orders o ON oi.order_id = o.order_id
+    JOIN users u ON u.user_id = o.user_id
+    JOIN products p ON p.product_id = oi.product_id
+    WHERE o.status = 'completed'
+""", "EXERCISE 2.3: Create a report showing each order with")
+#Tener cuidado con los 'duplicados' que se producen por los join
+#En este caso se duplicaria items que tienen el mismo order_id, de esta forma no se 
+#puede usar total_amount de order, se tiene que calcular item por item el valor gastado
+
+
+"""
+YOUR QUERY HERE:
+"""
+run_query(conn, """
+    SELECT
+        u.username,
+        u.tier,
+        p.product_name,
+        p.category,
+        o.order_date,
+        oi.quantity,
+        (oi.quantity * oi.unit_price) as line_total,
+        SUM(oi.quantity * oi.unit_price) OVER (
+            PARTITION BY u.user_id
+            ORDER BY o.order_date
+            ROWS UNBOUNDED PRECEDING
+        ) as user_running_total
+    FROM order_items oi
+    JOIN orders o ON oi.order_id = o.order_id
+    JOIN users u ON o.user_id = u.user_id
+    JOIN products p ON oi.product_id = p.product_id
+    WHERE o.status = 'completed'
+    ORDER BY u.username, o.order_date
+    LIMIT 15
+""", "SOLUTION 2.3: Complete Order Report with Running Total")
+
+
+# EXERCISE 2.4: Find pairs of products that are frequently bought together
+# (in the same order)
+# Hint: Self JOIN on order_items
+
+run_query(conn, """
+    SELECT
+        p1.product_name as product_1,
+        p2.product_name as product_2,
+        COUNT(*) as count_together
+    
+    FROM order_items oi1
+    JOIN order_items oi2 ON oi1.order_id = oi2.order_id AND oi1.product_id < oi2.product_id
+    JOIN products p1 ON oi1.product_id = p1.product_id
+    JOIN products p2 ON oi2.product_id = p2.product_id
+    GROUP BY p1.product_name, p2.product_name
+    ORDER BY count_together DESC
+    LIMIT 10
+    ""","EXERCISE 2.4: Find pairs of products that are frequently bought together")
+
+"""
+YOUR QUERY HERE:
+"""
+run_query(conn, """
+    SELECT
+        p1.product_name as product_1,
+        p2.product_name as product_2,
+        COUNT(*) as times_bought_together
+    FROM order_items oi1
+    JOIN order_items oi2 ON oi1.order_id = oi2.order_id
+        AND oi1.product_id < oi2.product_id  -- Avoid duplicates and self-pairs
+    JOIN products p1 ON oi1.product_id = p1.product_id
+    JOIN products p2 ON oi2.product_id = p2.product_id
+    GROUP BY p1.product_name, p2.product_name
+    ORDER BY times_bought_together DESC
+    LIMIT 10
+""", "SOLUTION 2.4: Products Frequently Bought Together (Self Join)")
 
 # =============================================================================
 # SECTION 3: Window Functions - Interview Must-Know
@@ -431,7 +575,185 @@ run_query(conn, """
 """
 YOUR QUERY HERE:
 """
+run_query(conn, """
+    WITH user_orders AS (
+        SELECT
+            user_id,
+            order_id,
+            total_amount,
+            SUM(total_amount) OVER (PARTITION BY user_id) as user_total_spend,
+            RANK() OVER (PARTITION BY user_id ORDER BY total_amount DESC) as user_rank,
+            RANK() OVER (ORDER BY total_amount DESC) as global_rank
+        FROM orders
+        WHERE status = 'completed'
+    )
+    SELECT
+        user_id,
+        order_id,
+        total_amount as largest_order,
+        ROUND(100.0 * total_amount / user_total_spend, 1) as pct_of_total_spend,
+        global_rank
+    FROM user_orders
+    WHERE user_rank = 1
+    ORDER BY total_amount DESC
+""", "SOLUTION 3.1: Each User's Largest Order Analysis")
 
+run_query(conn, """
+    SELECT
+          o.user_id,
+          FIRST_VALUE(o.total_amount) OVER(PARTITION BY o.user_id ORDER BY o.total_amount DESC) as largest_order,
+          (o.total_amount / SUM(o.total_amount) OVER(PARTITION BY o.user_id) ) *(100) as percentage,
+          RANK() OVER(PARTITION BY o.user_id ORDER BY o.total_amount DESC)
+    FROM orders o 
+    WHERE o.status = 'completed'
+    ORDER BY o.user_id DESC
+ """, "esta mal, se hizo sobre todas las ordenes")
+#No esta mal si se pide sobre todas las ordenes
+#Se pidio que todas las cosas sean en base a 1 sola orden, las mas grande
+
+run_query(conn, """
+        WITH user_orders AS (
+          SELECT
+            o.user_id as user_id,
+            o.order_id as order_id,
+            o.total_amount as total_amount,
+            SUM(o.total_amount) OVER(PARTITION BY o.user_id) as user_total_spend,
+            RANK() OVER(PARTITION BY o.user_id ORDER BY o.total_amount DESC) as rank,
+            -- Ranking global (contra todo el mundo)
+            RANK() OVER(ORDER BY o.total_amount DESC) as global_rank
+          FROM orders o
+          WHERE o.status = 'completed'
+          ORDER BY o.user_id DESC
+          )
+
+        SELECT 
+          u.user_id,
+          u.order_id,
+          u.total_amount as largest_order,
+          u.total_amount / u.user_total_spend * 100  as percentage,
+          u.global_rank as rank_global
+        FROM user_orders u
+        WHERE u.rank = 1
+          """, "Excercise 3.1: Each User's Largest Order Analysis")
+#tener cuidado y como interpretar el globlal rank, pq si lo pones dentro de CTE podes compararlo con todas
+#las ventas, sin embargo si lo hacese despues, comparas con lo ya filtrados de rank 1
+
+
+# EXERCISE 3.2: Calculate for each order:
+# - Days until the user's next order
+# - Whether the next order was larger or smaller
+# - User's average order amount up to that point
+# Hint: Use LAG, LEAD, and running AVG
+
+"""
+YOUR QUERY HERE:
+"""
+run_query(conn, """
+    SELECT
+        user_id,
+        order_id,
+        order_date,
+        total_amount,
+        LEAD(order_date) OVER (PARTITION BY user_id ORDER BY order_date) as next_order_date,
+        julianday(LEAD(order_date) OVER (PARTITION BY user_id ORDER BY order_date))
+            - julianday(order_date) as days_to_next_order,
+        CASE
+            WHEN LEAD(total_amount) OVER (PARTITION BY user_id ORDER BY order_date) > total_amount
+                THEN 'Larger'
+            WHEN LEAD(total_amount) OVER (PARTITION BY user_id ORDER BY order_date) < total_amount
+                THEN 'Smaller'
+            ELSE 'Same/Last'
+        END as next_order_comparison,
+        ROUND(AVG(total_amount) OVER (
+            PARTITION BY user_id
+            ORDER BY order_date
+            ROWS UNBOUNDED PRECEDING
+        ), 2) as running_avg_amount
+    FROM orders
+    WHERE status = 'completed'
+    ORDER BY user_id, order_date
+""", "SOLUTION 3.2: Order Sequence Analysis with LAG/LEAD")
+
+
+# EXERCISE 3.3: Find users whose order amounts are consistently increasing
+# (each order is larger than the previous one)
+# Hint: Use LAG and compare
+
+"""
+YOUR QUERY HERE:
+"""
+run_query(conn, """
+    WITH order_comparisons AS (
+        SELECT
+            user_id,
+            order_id,
+            order_date,
+            total_amount,
+            LAG(total_amount) OVER (PARTITION BY user_id ORDER BY order_date) as prev_amount,
+            CASE
+                WHEN LAG(total_amount) OVER (PARTITION BY user_id ORDER BY order_date) IS NULL THEN 1
+                WHEN total_amount > LAG(total_amount) OVER (PARTITION BY user_id ORDER BY order_date) THEN 1
+                ELSE 0
+            END as is_increasing
+        FROM orders
+        WHERE status = 'completed'
+    ),
+    user_patterns AS (
+        SELECT
+            user_id,
+            COUNT(*) as total_orders,
+            SUM(is_increasing) as increasing_count,
+            MIN(is_increasing) as all_increasing  -- 1 if all orders are increasing
+        FROM order_comparisons
+        GROUP BY user_id
+        HAVING COUNT(*) >= 2  -- At least 2 orders to compare
+    )
+    SELECT
+        up.user_id,
+        u.username,
+        up.total_orders,
+        CASE WHEN up.all_increasing = 1 THEN 'Yes' ELSE 'No' END as consistently_increasing
+    FROM user_patterns up
+    JOIN users u ON up.user_id = u.user_id
+    ORDER BY up.all_increasing DESC, up.total_orders DESC
+""", "SOLUTION 3.3: Users with Consistently Increasing Orders")
+
+
+# EXERCISE 3.4: Create a "Top 3 orders per user" report
+# Show only the 3 highest value orders for each user
+# Include the user's rank and total spend
+# Hint: Use ROW_NUMBER and filter
+
+"""
+YOUR QUERY HERE:
+"""
+run_query(conn, """
+    WITH ranked_orders AS (
+        SELECT
+            o.user_id,
+            u.username,
+            o.order_id,
+            o.order_date,
+            o.total_amount,
+            ROW_NUMBER() OVER (PARTITION BY o.user_id ORDER BY o.total_amount DESC) as order_rank,
+            SUM(o.total_amount) OVER (PARTITION BY o.user_id) as user_total_spend,
+            COUNT(*) OVER (PARTITION BY o.user_id) as user_order_count
+        FROM orders o
+        JOIN users u ON o.user_id = u.user_id
+        WHERE o.status = 'completed'
+    )
+    SELECT
+        username,
+        order_id,
+        order_date,
+        total_amount,
+        order_rank,
+        ROUND(user_total_spend, 2) as user_total_spend,
+        user_order_count
+    FROM ranked_orders
+    WHERE order_rank <= 3
+    ORDER BY username, order_rank
+""", "SOLUTION 3.4: Top 3 Orders per User")
 
 # =============================================================================
 # SECTION 4: CTEs and Subqueries - Code Organization
@@ -530,6 +852,81 @@ run_query(conn, """
 """
 YOUR QUERY HERE:
 """
+run_query(conn, """
+    WITH user_cohorts AS (
+        SELECT
+            user_id,
+            strftime('%Y-%m', signup_date) as signup_cohort
+        FROM users
+    ),
+    user_revenue AS (
+        SELECT
+            o.user_id,
+            SUM(o.total_amount) as total_revenue
+        FROM orders o
+        WHERE o.status = 'completed'
+        GROUP BY o.user_id
+    )
+    SELECT
+        uc.signup_cohort,
+        COUNT(DISTINCT uc.user_id) as cohort_size,
+        COUNT(DISTINCT ur.user_id) as users_with_orders,
+        ROUND(100.0 * COUNT(DISTINCT ur.user_id) / COUNT(DISTINCT uc.user_id), 1) as conversion_pct,
+        ROUND(AVG(ur.total_revenue), 2) as avg_revenue_per_user
+    FROM user_cohorts uc
+    LEFT JOIN user_revenue ur ON uc.user_id = ur.user_id
+    GROUP BY uc.signup_cohort
+    ORDER BY uc.signup_cohort
+""", "SOLUTION 4.1: Cohort Analysis")
+
+
+# EXERCISE 4.2: Find for each user their favorite product (most ordered)
+"""
+YOUR QUERY HERE:
+"""
+run_query(conn, """
+    WITH user_product_counts AS (
+        SELECT
+            o.user_id,
+            p.product_name,
+            SUM(oi.quantity) as total_quantity,
+            ROW_NUMBER() OVER (PARTITION BY o.user_id ORDER BY SUM(oi.quantity) DESC) as rn
+        FROM orders o
+        JOIN order_items oi ON o.order_id = oi.order_id
+        JOIN products p ON oi.product_id = p.product_id
+        WHERE o.status = 'completed'
+        GROUP BY o.user_id, p.product_name
+    )
+    SELECT
+        u.username,
+        upc.product_name as favorite_product,
+        upc.total_quantity
+    FROM user_product_counts upc
+    JOIN users u ON upc.user_id = u.user_id
+    WHERE upc.rn = 1
+    ORDER BY upc.total_quantity DESC
+""", "SOLUTION 4.2: Each User's Favorite Product")
+
+
+# EXERCISE 4.3: Find users who ordered from ALL categories
+"""
+YOUR QUERY HERE:
+"""
+run_query(conn, """
+    SELECT
+        u.user_id,
+        u.username,
+        COUNT(DISTINCT p.category) as categories_ordered
+    FROM users u
+    JOIN orders o ON u.user_id = o.user_id
+    JOIN order_items oi ON o.order_id = oi.order_id
+    JOIN products p ON oi.product_id = p.product_id
+    WHERE o.status = 'completed'
+    GROUP BY u.user_id, u.username
+    HAVING COUNT(DISTINCT p.category) = (
+        SELECT COUNT(DISTINCT category) FROM products WHERE is_active = TRUE
+    )
+""", "SOLUTION 4.3: Users Who Ordered from All Categories")
 
 
 # =============================================================================
@@ -698,6 +1095,38 @@ run_query(conn, """
 """
 YOUR QUERY HERE:
 """
+run_query(conn, """
+    WITH user_stats AS (
+        SELECT u.user_id, u.username, COUNT(o.order_id) as orders,
+            COALESCE(AVG(o.total_amount), 0) as aov,
+            julianday('2024-04-01') - julianday(u.signup_date) as days
+        FROM users u LEFT JOIN orders o ON u.user_id = o.user_id AND o.status = 'completed'
+        GROUP BY u.user_id, u.username, u.signup_date
+    )
+    SELECT username, orders, ROUND(aov, 2) as aov,
+        ROUND(CASE WHEN days > 0 THEN orders * 365.0 / days ELSE 0 END, 2) as orders_per_year,
+        ROUND(CASE WHEN days > 0 THEN aov * (orders * 365.0 / days) * 3 ELSE 0 END, 2) as clv_3yr
+    FROM user_stats WHERE orders > 0 ORDER BY clv_3yr DESC
+""", "SOLUTION 5.1: Customer Lifetime Value")
+
+# EXERCISE 5.2: Churn risk score
+run_query(conn, """
+    SELECT u.username, ROUND(julianday('2024-04-01') - julianday(MAX(o.order_date)), 0) as days_inactive,
+        COUNT(o.order_id) as orders,
+        CASE WHEN MAX(o.order_date) IS NULL OR julianday('2024-04-01') - julianday(MAX(o.order_date)) > 60 THEN 'HIGH'
+             WHEN COUNT(o.order_id) <= 1 THEN 'MEDIUM' ELSE 'LOW' END as churn_risk
+    FROM users u LEFT JOIN orders o ON u.user_id = o.user_id AND o.status = 'completed'
+    GROUP BY u.user_id, u.username ORDER BY days_inactive DESC
+""", "SOLUTION 5.2: Churn Risk")
+
+# EXERCISE 5.3: Month-over-month growth
+run_query(conn, """
+    WITH m AS (SELECT strftime('%Y-%m', order_date) as month, SUM(total_amount) as rev
+               FROM orders WHERE status = 'completed' GROUP BY 1)
+    SELECT month, rev, LAG(rev) OVER (ORDER BY month) as prev,
+           ROUND(100.0 * (rev - LAG(rev) OVER (ORDER BY month)) / LAG(rev) OVER (ORDER BY month), 1) as mom_pct
+    FROM m ORDER BY month
+""", "SOLUTION 5.3: MoM Growth")
 
 
 # =============================================================================
