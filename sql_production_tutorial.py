@@ -943,35 +943,6 @@ run_query(conn, """
 # - Calculate average revenue per cohort
 # - Calculate retention (users who ordered in month after signup)
 
-"""
-YOUR QUERY HERE:
-"""
-run_query(conn, """
-    WITH user_cohorts AS (
-        SELECT
-            user_id,
-            strftime('%Y-%m', signup_date) as signup_cohort
-        FROM users
-    ),
-    user_revenue AS (
-        SELECT
-            o.user_id,
-            SUM(o.total_amount) as total_revenue
-        FROM orders o
-        WHERE o.status = 'completed'
-        GROUP BY o.user_id
-    )
-    SELECT
-        uc.signup_cohort,
-        COUNT(DISTINCT uc.user_id) as cohort_size,
-        COUNT(DISTINCT ur.user_id) as users_with_orders,
-        ROUND(100.0 * COUNT(DISTINCT ur.user_id) / COUNT(DISTINCT uc.user_id), 1) as conversion_pct,
-        ROUND(AVG(ur.total_revenue), 2) as avg_revenue_per_user
-    FROM user_cohorts uc
-    LEFT JOIN user_revenue ur ON uc.user_id = ur.user_id
-    GROUP BY uc.signup_cohort
-    ORDER BY uc.signup_cohort
-""", "SOLUTION 4.1: Cohort Analysis")
 
 
 # EXERCISE 4.2: Find for each user their favorite product (most ordered)
@@ -1000,7 +971,29 @@ run_query(conn, """
     WHERE upc.rn = 1
     ORDER BY upc.total_quantity DESC
 """, "SOLUTION 4.2: Each User's Favorite Product")
-
+run_query(conn, """
+WITH user_product_ranks AS (
+          SELECT
+            u.username,
+            u.user_id,
+            p.product_name,
+            SUM(ot.quantity) as total_quantity,
+            RANK() OVER(PARTITION BY u.user_id ORDER BY SUM(ot.quantity) DESC) as rank
+          FROM users u
+          JOIN orders o ON u.user_id = o.user_id
+          JOIN order_items ot ON ot.order_id = o.order_id
+          JOIN products p ON ot.product_id = p.product_id
+          WHERE o.status = 'completed'
+          GROUP BY u.user_id, p.product_name
+          ORDER BY u.username)
+        SELECT
+          upr.username,
+          upr.product_name as favorite_product,
+          upr.total_quantity
+        FROM user_product_ranks upr
+        WHERE upr.rank = 1
+        ORDER BY upr.total_quantity DESC
+          ""","Mi solucion 4.2: Each User's Favorite Product")
 
 # EXERCISE 4.3: Find users who ordered from ALL categories
 """
@@ -1021,7 +1014,32 @@ run_query(conn, """
         SELECT COUNT(DISTINCT category) FROM products WHERE is_active = TRUE
     )
 """, "SOLUTION 4.3: Users Who Ordered from All Categories")
-
+run_query(conn, """
+          --contamos todas las categorias
+    WITH all_categories AS(
+          SELECT
+            COUNT(DISTINCT p.category) as total_categories
+          FROM products p),
+    user_categories AS(
+          --contamos la cantidad de categorias de cada usuario
+          SELECT
+            u.user_id,
+            u.username,
+            COUNT(DISTINCT p.category) as user_categories  
+        FROM users u
+        JOIN orders o ON u.user_id = o.user_id
+        JOIN order_items oi ON o.order_id = oi.order_id
+        JOIN products p ON p.product_id =oi.product_id
+          WHERE o.status = 'completed'
+        GROUP BY u.user_id)
+        SELECT 
+          uc.user_id,
+          uc.username,
+          uc.user_categories
+        FROM user_categories uc
+        WHERE uc.user_categories = (SELECT total_categories FROM all_categories)
+      
+          ""","MY solucion 4.3: Users Who Ordered from All Categories")
 
 # =============================================================================
 # SECTION 5: Advanced Analytics Patterns
