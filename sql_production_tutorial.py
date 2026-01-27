@@ -1939,7 +1939,108 @@ Try these problems on your own, then check with the database:
 
 Good luck with your interviews!
 """)
+run_query(conn, """
+WITH daily_dau AS (
+    -- Paso 1: Calcular DAU (Usuarios únicos por DÍA)
+    SELECT
+        strftime('%Y-%m-%d', event_timestamp) as day,
+        COUNT(DISTINCT user_id) as dau_count
+    FROM events
+    GROUP BY 1  -- Agrupamos por día
+),
+monthly_mau AS (
+    -- Paso 2: Calcular MAU (Usuarios únicos por MES)
+    -- Ojo: No podemos sumar los DAUs, tenemos que contar distinct user_id otra vez
+    SELECT
+        strftime('%Y-%m', event_timestamp) as month,
+        COUNT(DISTINCT user_id) as mau_count
+    FROM events
+    GROUP BY 1  -- Agrupamos por mes
+)
+-- Paso 3: Juntar las dos tablas
+SELECT
+    m.month,
+    -- Promedio de usuarios diarios / Usuarios totales del mes
+    ROUND(AVG(d.dau_count), 2) as avg_dau,
+    m.mau_count,
+    ROUND((AVG(d.dau_count) * 1.0 / m.mau_count) * 100, 2) || '%' as stickiness_ratio
+FROM daily_dau d
+JOIN monthly_mau m
+    -- Truco: Extraemos el "año-mes" del día para unirlo con la tabla mensual
+    ON strftime('%Y-%m', d.day) = m.month
+GROUP BY m.month, m.mau_count
+          """, "6. ACTIVE USERS Calculate Daily Active Users (DAU) and Monthly Active Users (MAU) ratio.")
+run_query(conn, """
+WITH user_metrics AS (
+    SELECT
+        user_id,
+        -- 1. Days Since Last Order (Lo hiciste bien)
+        julianday('2024-04-01') - julianday(MAX(order_date)) as days_since_last,
 
+        -- Para la Frecuencia: Necesitamos saber cuándo empezó y cuándo terminó
+        (julianday(MAX(order_date)) - julianday(MIN(order_date))) / 30.0 as months_active,
+        COUNT(order_id) as total_orders,
+
+        -- 3. Average Order Value (AOV) - Fácil
+        AVG(total_amount) as avg_order_value,
+
+        -- Para el Trend: Necesitamos ver cuánto gastó la última vez.
+        -- Usamos un truco con FIRST_VALUE para traer el monto de la orden más reciente
+        FIRST_VALUE(total_amount) OVER (
+            PARTITION BY user_id ORDER BY order_date DESC
+        ) as last_order_amount
+
+    FROM orders
+    WHERE status = 'completed'
+    GROUP BY user_id
+)
+SELECT
+    user_id,
+    days_since_last,
+
+    -- 2. Order Frequency (Evitamos división por cero con NULLIF)
+    -- Si months_active es 0 (compró y se fue el mismo día), asumimos frecuencia = total_orders
+    ROUND(total_orders / NULLIF(months_active, 0.5), 2) as orders_per_month,
+
+    ROUND(avg_order_value, 2) as aov,
+
+    -- 4. Trend Calculation
+    CASE
+        WHEN last_order_amount > avg_order_value THEN 'Increasing'
+        WHEN last_order_amount < avg_order_value THEN 'Decreasing'
+        ELSE 'Stable'
+    END as spend_trend
+
+FROM user_metrics
+          """,
+ "Solucion ej 7. CHURN PREDICTION FEATURES")
+
+run_query(conn, """
+    WITH duplicados_marcados AS (
+          SELECT
+          o.order_id,
+          o.user_id,
+          o.order_date,
+          o.total_amount,
+          ROW_NUMBER() OVER(PARTITION BY o.user_id, o.order_date, o.total_amount) as rep_num
+          FROM orders o
+          WHERE o.status = 'completed'
+          )
+          SELECT dm.order_id 
+          FROM duplicados_marcados dm
+          WHERE dm.rep_num > 1
+          """,
+ "Solucion ej 8 duplicate prediction con order id marcado")
+run_query(conn, """
+SELECT
+        o.user_id,
+        o.order_date,
+        o.total_amount
+FROM orders o
+GROUP BY o.user_id, o.order_date, o.total_amount
+HAVING COUNT(o.order_id) > 1
+          """,
+ "Solucion ej 8 Duplicate detectetion: Find duplicate orders (same user, same day, same amount)")
 # Close connection
 conn.close()
 
