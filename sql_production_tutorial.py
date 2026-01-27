@@ -943,7 +943,33 @@ run_query(conn, """
 # - Calculate average revenue per cohort
 # - Calculate retention (users who ordered in month after signup)
 
-
+run_query(conn, """
+WITH user_cohorts AS (
+          SELECT
+            u.user_id,
+            u.username,
+            strftime('%Y-%m',u.signup_date)as signup_month,
+            CASE WHEN date(u.signup_date,'+1 month') > date(o.order_date)
+            THEN 0 ELSE 1
+            END as order_after_month_signup
+          FROM users u
+          JOIN orders o ON o.user_id = u.user_id
+          GROUP BY u.user_id
+           ),
+     cohort_analisis AS (
+          SELECT
+            uc.signup_month,
+            COUNT(DISTINCT uc.user_id) as num_users_per_cohort,
+            AVG(o.total_amount) as avg_revenue_per_cohort,
+            SUM(uc.order_after_month_signup ) as retention_per_cohort
+          FROM user_cohorts uc
+          JOIN orders o ON uc.user_id = o.user_id
+          GROUP BY uc.signup_month
+          ORDER BY uc.signup_month
+          )
+        SELECT *
+        FROM cohort_analisis
+          ""","My solucion 4.1: Cohort Analysis")
 
 # EXERCISE 4.2: Find for each user their favorite product (most ordered)
 """
@@ -1103,6 +1129,11 @@ run_query(conn, """
     ORDER BY uc.cohort_month
 """, "Cohort Retention Analysis")
 
+# COUNT(DISTINCT CASE
+#             WHEN uo.order_month = uc.cohort_month THEN uo.user_id
+#         END) as month_0_active
+#Super buena forma de filtrar, con el distinct nor quedamos con cantidad sin repetir bien,
+#filtramos por los usuarios que me cumplearon la cond en algun momento. 
 # --- 5.3 RFM Segmentation ---
 # CLASSIC INTERVIEW QUESTION
 
@@ -1221,6 +1252,31 @@ run_query(conn, """
     FROM user_stats WHERE orders > 0 ORDER BY clv_3yr DESC
 """, "SOLUTION 5.1: Customer Lifetime Value")
 
+run_query(conn,"""
+
+WITH user_stats AS (
+          SELECT
+            u.user_id,
+            u.username,
+            AVG(o.total_amount) as aov,
+            COALESCE(COUNT(o.order_id),0) as orders,
+            julianday('2024-04-01') - julianday(u.signup_date) as days
+          FROM users u
+          LEFT JOIN orders o ON o.user_id = u.user_id
+          AND o.status = 'completed'
+          GROUP BY u.user_id)
+          SELECT
+          username,
+          orders,
+          aov,
+          -- no se hace por ano, ya que daria un calculo erroneo para alguien que
+          -- se suscribio hace un 1 mes y compro 2 cosas, deberia tener un 
+          -- alto, no uno bajo. Analogia de  Distancia/Tiempo = Velocidad 
+          ROUND( orders * 365.0 / days, 2) as aop,
+          ROUND( aov * (orders * 365.0 / days) * 3 , 2)  as CLV_3yr
+          FROM user_stats us
+        
+          """, "My solucion 5.1: Customer Lifetime Value")
 # EXERCISE 5.2: Churn risk score
 run_query(conn, """
     SELECT u.username, ROUND(julianday('2024-04-01') - julianday(MAX(o.order_date)), 0) as days_inactive,
@@ -1231,6 +1287,44 @@ run_query(conn, """
     GROUP BY u.user_id, u.username ORDER BY days_inactive DESC
 """, "SOLUTION 5.2: Churn Risk")
 
+run_query(conn,"""
+
+WITH user_order_stats AS (
+    SELECT 
+        o.user_id,
+        MAX(o.order_date) as last_order,
+        COUNT(o.order_id) as orders_count,
+        -- TRUCO: NULLIF evita la división por cero para usuarios de 1 compra
+        -- Si count es 1, (1-1) = 0 -> NULLIF lo vuelve NULL -> El resultado es NULL
+        (julianday(MAX(o.order_date)) - julianday(MIN(o.order_date))) / NULLIF(COUNT(o.order_id) - 1, 0) as avg_days_gap
+    FROM orders o
+    WHERE o.status = 'completed'
+    GROUP BY o.user_id
+    -- BORRAMOS EL HAVING para que pasen todos
+)
+SELECT 
+    u.username,
+    u.user_id, -- Útil para debug
+    uos.orders_count, -- Útil para ver qué está pasando
+    CASE 
+        -- 1. Caso Eve (Nunca compró - NULL tras el Left Join)
+        WHEN uos.orders_count IS NULL THEN 'HIGH (Never Bought)'
+        
+        -- 2. Caso Alice (1 sola compra - Detectada correctamente ahora)
+        -- Usamos una regla fija (ej: 60 días) porque no tienen "promedio"
+        WHEN uos.orders_count = 1 AND (julianday('2024-04-01') - julianday(uos.last_order) > 60) THEN 'HIGH (One-time inactive)'
+        WHEN uos.orders_count = 1 THEN 'MEDIUM (One-time recent)'
+        
+        -- 3. Caso Charlie (Recurrentes - Usamos tu lógica de Gap)
+        -- Si el silencio actual > 3 veces su silencio promedio
+        WHEN (julianday('2024-04-01') - julianday(uos.last_order)) > 3 * uos.avg_days_gap THEN 'HIGH (Habit Broken)'
+        WHEN (julianday('2024-04-01') - julianday(uos.last_order)) > 1.5 * uos.avg_days_gap THEN 'MEDIUM (Slipping)'
+        
+        ELSE 'LOW' 
+    END as churn_risk
+FROM users u
+LEFT JOIN user_order_stats uos ON u.user_id = uos.user_id;
+          """, "My solucion 5.2: Churn Risk")
 # EXERCISE 5.3: Month-over-month growth
 run_query(conn, """
     WITH m AS (SELECT strftime('%Y-%m', order_date) as month, SUM(total_amount) as rev
@@ -1241,6 +1335,26 @@ run_query(conn, """
 """, "SOLUTION 5.3: MoM Growth")
 
 
+run_query(conn, """ 
+     EXPLAIN QUERY PLAN WITH monthly_revenue AS(
+        SELECT
+        strftime('%Y-%m', o.order_date) as month,
+        SUM(o.total_amount) as revenue
+    FROM orders o WHERE o.status = 'completed' 
+    GROUP BY strftime('%Y-%m', o.order_date)
+    ORDER BY strftime('%Y-%m', o.order_date) )
+        SELECT 
+          mr.month,
+          mr.revenue,
+          LAG(mr.revenue,1) OVER(ORDER BY mr.month) as prev_month,
+          ROUND(
+            100.0 * (revenue - LAG(revenue) OVER (ORDER BY month)) 
+            / NULLIF(LAG(revenue) OVER (ORDER BY month), 0)
+            , 1) as mom_growth_pct
+        FROM monthly_revenue mr
+          ""","MY solucion 5.3: Month-over-month growth")
+
+##SIEMPRE tener cuidado en la div por 0, meter null NULLIF(_,0)
 # =============================================================================
 # SECTION 6: Performance Optimization
 # =============================================================================
@@ -1271,6 +1385,8 @@ PRODUCTION TIPS:
 4. Common Anti-patterns:
    - WHERE YEAR(date_column) = 2024  -- Can't use index
    - WHERE column LIKE '%search%'    -- Can't use index (leading wildcard)
+    -- problema cuando buscamos terminaciones de palabras, no te sirve el indice que tenias
+    -- pq ahora tiene que buscar palabra por palabra
    - SELECT DISTINCT with large datasets
    - ORDER BY on non-indexed columns with large datasets
 """)
@@ -1302,7 +1418,18 @@ LEFT JOIN (SELECT user_id, COUNT(*) as order_count FROM orders GROUP BY user_id)
 ON u.user_id = o.user_id;
 """)
 
+"""--  MALO
+-- Si usas esto porque te salen filas repetidas, revisa tus JOINs.
+SELECT DISTINCT u.username 
+FROM users u 
+LEFT JOIN orders o ON u.id = o.user_id; 
+-- (Esto duplica al usuario por cada compra que hizo, y luego el DISTINCT sufre para limpiarlo).
 
+--  MEJOR
+-- Usa EXISTS o agrupa solo si es necesario.
+SELECT u.username 
+FROM users u 
+WHERE EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id);"""
 # =============================================================================
 # SECTION 7: Interview Questions & Exercises
 # =============================================================================
@@ -1336,6 +1463,25 @@ run_query(conn, """
     LIMIT 1
 """, "Solution 7.1: Second Highest Order Amount")
 
+#mi solucion
+run_query(conn, """
+WITH user_order_stats AS(
+          SELECT
+            o.user_id,
+            o.order_id,
+            o.total_amount as total_amount,
+            DENSE_RANK() OVER (ORDER BY o.total_amount DESC) as rank_order
+          FROM  orders o 
+          WHERE o.status = 'completed'
+          )
+SELECT 
+    u.username,
+    uo.total_amount as second_highest_amount
+FROM user_order_stats uo
+JOIN users u ON u.user_id = uo.user_id
+WHERE uo.rank_order = 2
+          """, "My solucion 7.1: Second Highest Order Amount")
+
 
 print("""
 === EXERCISE 7.2: Consecutive Days ===
@@ -1364,6 +1510,26 @@ run_query(conn, """
     WHERE julianday(order_date) - julianday(prev_date) = 1
 """, "Solution 7.2: Users with Consecutive Order Days")
 
+run_query(conn, """
+--asumimos que las fechas estan ordenadas
+WITH user_orders AS(
+    SELECT
+    o.user_id,
+    LEAD(o.order_date) 
+          OVER (PARTITION BY o.user_id ORDER BY o.order_date) as next_day,
+    o.order_date as current_day
+FROM orders o 
+WHERE o.status = 'completed')
+
+SELECT
+        u.username,
+        uo.current_day,
+        uo.next_day
+FROM user_orders uo
+JOIN users u ON u.user_id = uo.user_id
+WHERE julianday(next_day) - julianday(current_day) = 1
+
+          ""","mi solucion 7.2: Users with Consecutive Order Days")
 
 print("""
 === EXERCISE 7.3: Running Total with Reset ===
@@ -1398,7 +1564,55 @@ run_query(conn, """
     ORDER BY user_id, order_date
 """, "Running Total with Threshold Flag")
 
-
+run_query(conn,"""
+WITH RECURSIVE ordered_orders AS (
+    -- PASO 1: Ordenar y numerar las filas por usuario
+    SELECT 
+        user_id, 
+        order_id, 
+        total_amount,
+        ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY order_date) as rn
+    FROM orders
+    WHERE status = 'completed'
+),
+running_calc AS (
+    -- PASO 2: El Caso Base (La primera fila de cada usuario)
+    SELECT 
+        user_id,
+        order_id,
+        total_amount,
+        rn,
+        total_amount as current_run_total, -- El acumulado inicial es el monto mismo
+        1 as group_id -- Empezamos en el grupo 1
+    FROM ordered_orders
+    WHERE rn = 1
+    
+    UNION ALL
+    
+    -- PASO 3: La Recursión (Filas siguientes)
+    SELECT 
+        curr.user_id,
+        curr.order_id,
+        curr.total_amount,
+        curr.rn,
+        -- LA LÓGICA DEL RESET:
+        CASE 
+            WHEN prev.current_run_total > 500 THEN curr.total_amount -- Si el anterior se pasó, reinicio
+            ELSE prev.current_run_total + curr.total_amount          -- Si no, sumo
+        END as current_run_total,
+        -- Lógica para marcar grupos (opcional, visualmente útil)
+        CASE 
+            WHEN prev.current_run_total > 500 THEN prev.group_id + 1 
+            ELSE prev.group_id 
+        END
+    FROM ordered_orders curr
+    JOIN running_calc prev 
+        ON curr.user_id = prev.user_id -- Mismo usuario
+        AND curr.rn = prev.rn + 1      -- Fila siguiente exacta
+)
+SELECT * FROM running_calc
+ORDER BY user_id, rn;
+          """, "My solucion 7.3: Running Total with Reset")
 print("""
 === EXERCISE 7.4: Gap Analysis ===
 Find the gaps in order_id sequence (missing order IDs).
@@ -1420,7 +1634,20 @@ run_query(conn, """
     WHERE next_id - order_id > 1
 """, "Solution 7.4: Finding Gaps in Order IDs")
 
-
+run_query(conn, """
+WITH order_id_dates AS(
+          SELECT
+            o.order_id,
+            o.order_date,
+            LEAD(o.order_id) OVER(ORDER BY o.order_id)as next_id,
+            LEAD(o.order_date) OVER(ORDER BY o.order_id)as next_date
+            FROM orders o
+            ORDER BY o.order_id)
+          SELECT
+            *
+          FROM order_id_dates  od
+          WHERE od.next_id - od.order_id > 1
+          ""","Mi solucion 7.4: Finding Gaps in Order IDs")
 print("""
 === EXERCISE 7.5: Percentile Calculation ===
 Calculate the 25th, 50th (median), and 75th percentile of order amounts.
@@ -1444,6 +1671,24 @@ run_query(conn, """
     ORDER BY quartile
 """, "Solution 7.5: Quartile Analysis")
 
+run_query(conn, """
+    WITH quartile_order_amounts AS (
+        SELECT
+           o.total_amount,
+           NTILE(4) OVER(ORDER BY o.total_amount) as quartile
+        FROM orders o
+        WHERE o.status = 'completed')
+        SELECT
+          CASE WHEN qo.quartile = 1 THEN 'Q1'
+        WHEN qo.quartile = 2 THEN 'Q2'
+        WHEN qo.quartile = 3 THEN 'Q3'
+        WHEN qo.quartile = 4 THEN 'Q4' END as quartile,
+           
+        MAX(qo.total_amount) as  amount
+        FROM quartile_order_amounts qo
+        GROUP BY qo.quartile
+        ORDER BY qo.quartile
+           """, "mi solucion 7.5: Quartile Analysis")
 
 # =============================================================================
 # SECTION 8: Production SQL Patterns
@@ -1523,8 +1768,137 @@ SELECT 'negative amounts' as check_name,
 FROM orders WHERE total_amount < 0;
 """)
 
+"""
+    Aquí tienes una explicación detallada de estos 4 patrones de **Ingeniería de Datos**. Estos conceptos son lo que diferencia a un script "casero" de un pipeline ETL profesional y robusto.
 
-# =============================================================================
+---
+
+### 8.1 Idempotent Data Loads (Cargas de Datos Idempotentes) 🔄
+
+**El Concepto:**
+La **idempotencia** es una propiedad matemática que significa: "No importa cuántas veces ejecutes una operación, el resultado final siempre es el mismo".
+
+**El Problema:**
+Imagina que tu proceso de carga falla a la mitad.
+
+* Si vuelves a correr el script, ¿se duplican los datos? (Malo ❌)
+* Si corre dos veces, ¿tienes el doble de ventas? (Malo ❌)
+
+**La Solución (UPSERT/MERGE):**
+En lugar de hacer un simple `INSERT`, usamos un patrón `UPSERT` (Update + Insert).
+
+* **Si el ID ya existe:** Actualiza los datos (`UPDATE`).
+* **Si el ID no existe:** Inserta una fila nueva (`INSERT`).
+
+**Explicación del Código:**
+
+```sql
+INSERT INTO target_table ...
+ON CONFLICT (id) -- Si la base de datos detecta que este ID ya existe...
+DO UPDATE SET    -- ...en lugar de dar error, actualiza:
+    value = EXCLUDED.value; -- Pon el valor nuevo que intentabas insertar.
+
+```
+
+**Ejemplo de la Vida Real:**
+Tienes una tabla de **Inventario**.
+
+* Llega un archivo diciendo: "Producto 101: 50 unidades".
+* Si el Producto 101 no existe  Lo creas.
+* Si el Producto 101 ya existía con 40 unidades  Lo actualizas a 50.
+* Si corres el script 10 veces, el inventario siempre será 50. (No 500).
+
+---
+
+### 8.2 Incremental Processing (Procesamiento Incremental) 💧
+
+**El Concepto:**
+En lugar de procesar **toda la historia** cada vez que corre el ETL, solo procesas lo que ha cambiado o es nuevo desde la última vez.
+
+**El Problema:**
+Tienes una tabla de `orders` con 10 millones de filas históricas.
+
+* Si cada noche lees los 10 millones de filas para actualizar tu dashboard, el proceso tardará horas y costará mucho dinero.
+
+**La Solución (Watermark / Marca de Agua):**
+Guardas en una tabla auxiliar (`etl_watermarks`) la fecha/hora de la última ejecución exitosa.
+
+1. Lees la marca: "¿Hasta qué hora procesé ayer? Ah, hasta las 23:00".
+2. Consultas: "Dame solo las ventas desde las 23:00 en adelante".
+
+**Explicación del Código:**
+
+```sql
+SELECT * FROM events
+WHERE event_timestamp > (
+    -- Busca la "marca" más alta registrada.
+    -- COALESCE: Si es la primera vez que corre (null), usa fecha 1970 (trae todo).
+    SELECT COALESCE(MAX(processed_timestamp), '1970-01-01')
+    FROM etl_watermarks
+);
+
+```
+
+**Ejemplo de la Vida Real:**
+Es como un **marcapáginas** en un libro. Si ayer leíste hasta la página 50, hoy no empiezas a leer desde la página 1. Empiezas en la 51. El "Watermark" es tu marcapáginas.
+
+---
+
+### 8.3 Slowly Changing Dimensions - Type 2 (Dimensiones Cambiantes Lentas) 🕰️
+
+**El Concepto:**
+Es una técnica de Data Warehousing para rastrear **cómo cambian los datos a lo largo del tiempo**, guardando un historial completo.
+
+**El Problema:**
+El usuario Juan era "Nivel Básico" en Enero, pero subió a "Nivel Premium" en Febrero.
+
+* Si sobreescribes el dato (SCD Tipo 1), parecerá que Juan *siempre* fue Premium. Tus reportes de ventas de Enero estarán mal (porque en Enero pagó precio Básico).
+
+**La Solución (SCD Tipo 2):**
+En lugar de borrar, creamos una nueva fila y cerramos la vieja.
+
+* Fila 1: Juan | Básico | Enero - Febrero (Expirada)
+* Fila 2: Juan | Premium | Febrero - NULL (Activa)
+
+**Explicación del Código:**
+El código hace dos cosas:
+
+1. **INSERT:** Detecta si el `tier` (nivel) cambió (`s.tier != h.tier`) e inserta una nueva fila con `is_current = TRUE`.
+2. **UPDATE:** Busca la fila vieja de ese usuario y la "cierra" (`valid_to = ayer`, `is_current = FALSE`).
+
+**Ejemplo de la Vida Real:**
+El historial de direcciones de envío en Amazon.
+Aunque te mudes hoy, Amazon necesita recordar tu dirección vieja para saber a dónde envió los paquetes el año pasado. No borran tu dirección vieja, la marcan como "no vigente" y crean la nueva como "vigente".
+
+---
+
+### 8.4 Data Quality Checks (Controles de Calidad de Datos) 🛡️
+
+**El Concepto:**
+Son "Test Unitarios" pero para datos. Verifican que la información cumpla con las reglas del negocio antes de ser usada en reportes.
+
+**El Problema:**
+Un error en la app hace que lleguen órdenes sin `user_id` o con precios negativos ($-500). Si eso llega al reporte del CEO, tomará malas decisiones.
+
+**La Solución:**
+Crear una consulta que cuente los errores. Si el resultado es > 0, el pipeline falla o manda una alerta.
+
+**Explicación del Código:**
+El código usa `UNION ALL` para juntar varios tests en una sola tabla de resultados:
+
+1. **Null check:** ¿Hay órdenes sin dueño? (`user_id IS NULL`).
+2. **Integridad Referencial (Orphans):** ¿Hay órdenes asociadas a un usuario que no existe en la tabla de usuarios? (JOIN devuelve NULL).
+3. **Reglas de Negocio:** ¿Hay montos negativos? (`total_amount < 0`).
+
+**Ejemplo de la Vida Real:**
+Es como un **Inspector de Calidad** en una fábrica de coches.
+
+* Revisa: ¿Tiene 4 ruedas? (Null check).
+* Revisa: ¿El motor corresponde a este chasis? (Integridad referencial).
+* Revisa: ¿El auto mide más de 0 metros? (Regla de negocio).
+Si algo falla, detiene la línea de producción antes de que el coche salga a la venta.
+"""
+# ============================================================================
 # FINAL: Practice Problems
 # =============================================================================
 
