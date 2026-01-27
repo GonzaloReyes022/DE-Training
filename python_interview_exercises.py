@@ -34,7 +34,7 @@ print("\n--- 1.1 LISTAS ---")
 
 lista = [1, 2, 3, 4, 5]
 # TU CÓDIGO:
-
+lista_invertida = lista[::-1]
 
 # SOLUCIÓN:
 lista_invertida = lista[::-1]
@@ -48,8 +48,18 @@ print(f"Lista invertida: {lista_invertida}")
 
 datos = [1, 2, 2, 3, 1, 4, 3, 5]
 # TU CÓDIGO:
+datos_sin_duplicados_sin_orden = list(set(datos))
+print(f"Sin duplicados: {datos_sin_duplicados_sin_orden}")
 
-
+datos_sin_duplicados_orden = []
+aux_set = set()
+for item in datos:
+    if item not in aux_set:
+        aux_set.add(item)
+        datos_sin_duplicados_orden.append(item)
+print(f"Sin duplicados manteninedo orden: {datos_sin_duplicados_orden}")
+datos_ord =  list(dict.fromkeys(datos))
+print(f"Sin duplicados: {datos_ord}")
 # SOLUCIÓN:
 # Método 1: Con set (pierde orden en Python < 3.7)
 sin_duplicados_set = list(set(datos))  # NO garantiza orden
@@ -75,6 +85,18 @@ print(f"Sin duplicados (dict): {sin_duplicados_dict}")
 
 numeros = [5, 2, 8, 1, 9, 3, 9]
 # TU CÓDIGO:
+numeros_ordenados = sorted(set(numeros), reverse=True)
+segundo_mayor = numeros_ordenados[1]
+print(f"Segundo mayor: {segundo_mayor}")
+# O(n log(n))
+primero = segundo = float('-inf')
+for item in numeros:
+    if item > primero:
+        segundo = primero
+        primero = item
+    if item > segundo and item != primero:
+        segundo = item
+print(f"Segundo mayor: {segundo}")
 
 
 # SOLUCIÓN:
@@ -104,6 +126,13 @@ print(f"Segundo mayor (eficiente): {segundo_mayor_eficiente(numeros)}")
 lista = [1, 2, 3, 4, 5]
 k = 2
 # TU CÓDIGO:
+lista_salida = []
+for i in range(len(lista)):
+    lista_salida.append(lista[i-k])
+print(lista_salida)
+
+lista_salida_chulada = lista[-k:] + lista[:-k]
+print(lista_salida_chulada)
 
 
 # SOLUCIÓN:
@@ -136,6 +165,7 @@ print(f"Conteo manual: {conteo}")
 # Método 2: Con defaultdict
 from collections import defaultdict
 conteo_dd = defaultdict(int)
+#Al llamar a int(), Python devuelve 0
 for t in transacciones:
     conteo_dd[t] += 1
 print(f"Conteo defaultdict: {dict(conteo_dd)}")
@@ -160,6 +190,12 @@ empleados = [
 ]
 # TU CÓDIGO:
 
+from collections import defaultdict
+empleados_groupby_dept = defaultdict(list)
+
+for item in empleados:
+    empleados_groupby_dept[item['dept']].append(item['name'])
+print(empleados_groupby_dept)
 
 # SOLUCIÓN:
 por_depto = defaultdict(list)
@@ -174,8 +210,10 @@ print(f"Agrupado por depto: {dict(por_depto)}")
 # Output: {1: 'a', 2: 'b', 3: 'c'}
 
 original = {'a': 1, 'b': 2, 'c': 3}
-# TU CÓDIGO:
 
+# TU CÓDIGO:
+original_inverted = {v:k for k, v in original.items()} 
+print(original_inverted)
 
 # SOLUCIÓN:
 invertido = {v: k for k, v in original.items()}
@@ -190,7 +228,11 @@ print(f"Diccionario invertido: {invertido}")
 dict1 = {'a': 1, 'b': 2}
 dict2 = {'b': 3, 'c': 4}
 # TU CÓDIGO:
+dict_merged = dict1.copy()
 
+for k,v in dict2.items(): 
+    dict_merged[k] = dict_merged.get(k, 0) + v 
+print(dict_merged)
 
 # SOLUCIÓN:
 # Método 1: Manual
@@ -211,7 +253,21 @@ print(f"Merged (Counter): {dict(merged_counter)}")
 nums = [2, 7, 11, 15]
 target = 9
 # TU CÓDIGO:
+ind_nums_reach_target = []
+for  n in range(len(nums)):
+    for i in range(n+1, len(nums)):
+        if nums[n] + nums[i] == target:
+            ind_nums_reach_target.append((n,i))
+print(ind_nums_reach_target)
 
+vistos = {n:i for i, n  in enumerate(nums)}
+ind_nums_reach_target = []
+for i, n in enumerate(nums):
+    faltante = target - n
+    if faltante in vistos and vistos[faltante] != i:
+        ind_nums_reach_target.append((i, vistos[faltante]))
+
+print(ind_nums_reach_target)
 
 # SOLUCIÓN:
 def two_sum(nums, target):
@@ -240,7 +296,8 @@ print("\n--- 1.3 SETS ---")
 lista1 = [1, 2, 3, 4]
 lista2 = [3, 4, 5, 6]
 # TU CÓDIGO:
-
+comun_entre_lista = Counter(lista1) & Counter(lista2)
+comun_entre_lista_set = set(lista1) & set(lista2)
 
 # SOLUCIÓN:
 comunes = set(lista1) & set(lista2)
@@ -255,7 +312,8 @@ print(f"Elementos comunes: {comunes}")
 
 # TU CÓDIGO:
 
-
+unicos_lista_1 = set(lista1) - set(lista2)
+print(comun_entre_lista)
 # SOLUCIÓN:
 solo_en_primera = set(lista1) - set(lista2)
 print(f"Solo en primera lista: {solo_en_primera}")
@@ -269,7 +327,10 @@ print(f"Solo en primera lista: {solo_en_primera}")
 required_cols = {'id', 'name', 'date'}
 actual_cols = {'id', 'name', 'value'}
 # TU CÓDIGO:
-
+missing= required_cols - actual_cols
+extra= actual_cols - required_cols
+print(missing)
+print(extra)
 
 # SOLUCIÓN:
 missing = required_cols - actual_cols
@@ -285,7 +346,9 @@ print(f"Columnas extra: {extra}")
 compraron_A = {'user1', 'user2', 'user3', 'user5'}
 compraron_B = {'user2', 'user3', 'user4', 'user6'}
 # TU CÓDIGO:
-
+# TU CÓDIGO:
+ambos_productos_A_B = compraron_A.intersection(compraron_B)
+print(ambos_productos_A_B)
 
 # SOLUCIÓN:
 compraron_ambos = compraron_A & compraron_B
@@ -317,7 +380,8 @@ print("\n--- 2.1 LIST COMPREHENSIONS ---")
 
 numeros = [1, 2, 3, 4, 5, 6]
 # TU CÓDIGO:
-
+al_cuadrado = [x*x for x in numeros if x % 2 == 0]
+print(al_cuadrado)
 
 # SOLUCIÓN:
 cuadrados_pares = [x**2 for x in numeros if x % 2 == 0]
@@ -330,7 +394,8 @@ print(f"Cuadrados de pares: {cuadrados_pares}")
 
 precios_sucios = ['$100', '$20', 'N/A', '$5.50', '', None, '$30']
 # TU CÓDIGO:
-
+limpiado_filtrado = [float(p.replace('$','')) for p in precios_sucios if p and p.startswith('$')]
+print(limpiado_filtrado)
 
 # SOLUCIÓN:
 def limpiar_precio(p):
@@ -353,7 +418,10 @@ print(f"Suma total: ${sum(precios_validos)}")
 
 usuarios = [{'id': 1, 'name': 'Alice'}, {'id': 2, 'name': 'Bob'}, {'id': 3, 'name': 'Charlie'}]
 # TU CÓDIGO:
-
+output = {}
+for items in usuarios:
+    output[items['id']] = items['name']
+print(output)
 
 # SOLUCIÓN:
 lookup = {u['id']: u['name'] for u in usuarios}
@@ -367,7 +435,8 @@ print(f"Lookup table: {lookup}")
 
 anidada = [[1, 2], [3, 4], [5]]
 # TU CÓDIGO:
-
+flatten = [ e for sublista in anidada for e in sublista ] 
+print(flatten)
 
 # SOLUCIÓN:
 plana = [item for sublista in anidada for item in sublista]
@@ -718,7 +787,7 @@ def parentesis_validos(s):
     return len(stack) == 0
 
 print(f"'({[]})' es válido: {parentesis_validos('({[]})')}")
-print(f"'({[}])' es válido: {parentesis_validos('({[}])')}")
+#print(f"'({[}])' es válido: {parentesis_validos('({[}])')}")
 
 
 # -----------------------------------------------------------------------------
