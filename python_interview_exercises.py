@@ -477,9 +477,23 @@ for linea in procesar_archivo_bien(lineas_ejemplo):
 # Input: [1,2,3,4,5,6,7,8,9,10], batch_size=3
 # Output: [1,2,3], [4,5,6], [7,8,9], [10]
 
+input = [1,2,3,4,5,6,7,8,9,10]
+batch_size = 3
 def batch_generator(items, batch_size):
     # TU CÓDIGO:
-    pass
+    for  i in range(int(len(input) / batch_size) + 1):
+         yield  input[i * batch_size : (i+1) * batch_size]
+            
+    
+for l in batch_generator(input, batch_size): print(l)
+    
+def batch_generator_range(items, batch_size):
+    # TU CÓDIGO:
+    for  i in range(0, len(input), batch_size):
+         yield  input[i : i + batch_size]
+            
+for l in batch_generator(input, batch_size): print(l)
+    
 
 
 # SOLUCIÓN:
@@ -497,10 +511,17 @@ for batch in batch_generator(datos, 3):
 
 # EJERCICIO 2.2.3: Generador infinito con filtro
 # Genera números naturales que son múltiplos de 3 o 5
-
 def multiplos_3_o_5():
     # TU CÓDIGO:
-    pass
+    # jeje como lo pidio el peluche este de claude
+    i = 1
+    while True:
+        yield i * 3 * 5
+        i += 1
+
+val = multiplos_3_o_5()
+for _ in range(10):
+    print(next(val))
 
 
 # SOLUCIÓN:
@@ -536,10 +557,28 @@ datos_sucios = [
     None,  # Registro nulo
 ]
 
+from datetime import datetime
 def parsear_registro_seguro(registro):
     # TU CÓDIGO:
-    pass
+    result = {'fecha':None, 'monto':None , 'errores':[]}
+    try:
+        fecha_str = registro.get('fecha')
+        if fecha_str:
+            result['fecha']= datetime.strptime(fecha_str, '%Y-%m-%d')
+    except (ValueError, AttributeError) as e :
+        result['errores'].append(f"Error en fecha: {e}")
 
+    try:
+        monto_str = registro.get('monto')
+        if monto_str and monto_str != 'N/A':
+            result['monto'] = float(monto_str)
+    except (ValueError, AttributeError) as e:
+        result['errores'].append(f"Error en monto:{e}")
+    return result
+
+for item in datos_sucios:
+    output = parsear_registro_seguro(item)
+    print(output, end='')
 
 # SOLUCIÓN:
 from datetime import datetime
@@ -590,6 +629,8 @@ print("=" * 70)
 
 nombre_sucio = "  JUAN  pérez García  "
 # TU CÓDIGO:
+mombre_limpio = ' '.join([ x.title() for x in nombre_sucio.split()])
+print(mombre_limpio)
 
 
 # SOLUCIÓN:
@@ -639,8 +680,9 @@ print(f"Log parseado: {parsear_log(log_line)}")
 # Output: ['juan@empresa.com', 'soporte@empresa.com']
 
 texto = "Contactar a juan@empresa.com o soporte@empresa.com para más info"
-# TU CÓDIGO:
-
+# TU CÓDIGO
+output = [ x for x in texto.split() if x.endswith('@empresa.com')]
+print(output) 
 
 # SOLUCIÓN:
 import re
@@ -658,7 +700,9 @@ print(f"Emails encontrados: {extraer_emails(texto)}")
 
 snake = "user_first_name"
 # TU CÓDIGO:
-
+# TU CÓDIGO:
+output = ''.join( [x.title() if i != 0 else x for i,x in enumerate(snake.split('_'))])
+print(output)
 
 # SOLUCIÓN:
 def snake_to_camel(s):
@@ -674,7 +718,26 @@ print(f"Camel case: {snake_to_camel(snake)}")
 
 datos_sql = {'name': "O'Brien", 'age': 30, 'active': True}
 # TU CÓDIGO:
+def format_sql(val):
+    if val is None:
+        return 'NULL'
+    if val is True:
+        return 'TRUE'
+    if val is False:
+        return 'FALSE'
+    if type(val) is int or type(val) is float:
+        return str(val)
+    if type(val) is str:
+        result = val.replace("'", "''")
+        return f"'{result}'"
 
+keys = ', '.join(datos_sql.keys())
+values = ', '.join(format_sql(v) for v in datos_sql.values())
+
+output = f"INSERT INTO users  ( {keys}) VALUES ({values}) "
+
+print(f"format sql : {output}")
+      
 
 # SOLUCIÓN:
 def format_sql_value(val):
@@ -712,8 +775,16 @@ print("=" * 70)
 print("\n--- 4.1 FizzBuzz ---")
 
 def fizzbuzz(n):
-    # TU CÓDIGO:
-    pass
+    
+    if n % 3 == 0 and n % 5 == 0:
+        return 'FizzBuzz'
+    if n % 3 == 0:
+        return 'Fizz'
+    if n % 5 == 0:
+        return 'Buzz'
+    return str(n)
+for k in range(10):
+    print(fizzbuzz(k))
 
 
 # SOLUCIÓN:
@@ -740,10 +811,23 @@ print("\n--- 4.2 Verificar Anagramas ---")
 
 # Input: "listen", "silent"
 # Output: True
+input1 = "listen"
+input2 = "silent"
 
-def son_anagramas(s1, s2):
+def son_anagramas_set(s1, s2):
     # TU CÓDIGO:
-    pass
+    set_palabras1 = set(s1)
+    set_palabras2 = set(s2)
+    return set_palabras1 == set_palabras2
+#cuidado no cuenta las repetidas, si quiero hacerlo puedo usar Counter en vez de 
+#o sorted qye me da una lista ordenada de las letras y comparo listas
+def son_anagramas_sorted(s1, s2):
+    # TU CÓDIGO:
+    sorted_palabras1 = sorted(s1)
+    sorted_palabras2 = sorted(s2)
+    return sorted_palabras1 == sorted_palabras2
+
+print(son_anagramas_sorted(input1, input2))
 
 
 # SOLUCIÓN:
@@ -765,11 +849,14 @@ print("\n--- 4.3 Paréntesis Balanceados ---")
 
 # Input: "({[]})"
 # Output: True
-
+from collections import Counter
 def parentesis_validos(s):
     # TU CÓDIGO:
-    pass
+    counter_s = Counter(s)
+    return counter_s.get('{',0) == counter_s.get('}', 0) and counter_s.get('[',0) == counter_s.get(']', 0)
 
+print(f"'({[]})' es válido: {parentesis_validos('({[]})')}")
+# solucion mal, no respeta orden
 
 # SOLUCIÓN:
 def parentesis_validos(s):
@@ -798,9 +885,15 @@ print("\n--- 4.4 Primer Carácter Único ---")
 # Input: "aabbcdd"
 # Output: 'c'
 
+input = "aabbcdd" 
 def primer_unico(s):
     # TU CÓDIGO:
-    pass
+    c_s = Counter(s)
+    for k,v in c_s.items():
+        if v == 1:
+            return k
+print(f"Primer único: {primer_unico(input)}")
+
 
 
 # SOLUCIÓN:
@@ -823,12 +916,42 @@ print("\n--- 4.5 Compresión de String ---")
 # Input: "aabbbcccc"
 # Output: "a2b3c4"
 
+input = "aabbbcccc"
 def comprimir(s):
     # TU CÓDIGO:
-    pass
+    c_s = Counter(s)
+    result = ''
+    for k,v in c_s.items():
+        result = result + k + str(v)
+    return result
+print(comprimir(input))
+#no le importa orden, estaria mal
 
+#esta anda
+def comprimir(s):
+    # TU CÓDIGO:
+    if not s:
+        return ''
+    
+    result = ''
+    n = 0
+    for i , char in enumerate(s):
+        if i == 0:
+            result += char
+            n = 1
+        elif  s[i-1] == char:
+            n += 1
+        else:
+            result += str(n)
+            result += char
+            n = 1
+    result += str(n)
+    return result
 
-# SOLUCIÓN:
+print(comprimir(input))
+# esta ta mejor SOLUCIÓN, mejor rendimiento, no usar += en lo posible para string
+# al ser estos inmutables, hacer esto hace crear otro obj string en ram para 
+# crear una copia nueva de toda la cadena anterior más la nueva letra y borrar la viej: ---> O(n^2), usar join ->O(n)
 def comprimir(s):
     if not s:
         return ""
