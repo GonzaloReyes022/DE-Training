@@ -1002,7 +1002,13 @@ compras = [
 
 # INNER JOIN
 # TU CÓDIGO:
-
+join_manual = []
+for  items in usuarios:
+    for compra in compras:
+        if items['user_id'] == compra['user_id']:
+            inner_product =  items | compra
+            join_manual.append(inner_product)
+            
 
 # SOLUCIÓN:
 # Crear lookup table primero (O(1) búsqueda)
@@ -1049,6 +1055,14 @@ ventas = [
 
 # Calcular: suma de cantidad por región
 # TU CÓDIGO:
+from collections import defaultdict
+ventas_gp_region = defaultdict(list)
+
+for venta in ventas:
+    ventas_gp_region[venta['region']].append(venta['cantidad'])
+
+result = {k : sum(v)for k,v in ventas_gp_region.items()}
+print(result)
 
 
 # SOLUCIÓN:
@@ -1088,8 +1102,24 @@ registros = [
 ]
 
 # TU CÓDIGO:
+# TU CÓDIGO:
+
+def dup_intigente(dict_reg, field, duplicado_inteligente):
+    for registro in dict_reg:
+        value = registro[field]
+        if value in duplicado_inteligente:
+            if registro['updated'] > duplicado_inteligente[value]['updated']:
+                duplicado_inteligente[value] = registro.copy()
+        else:
+            duplicado_inteligente[value] = registro.copy()
+    return (list(duplicado_inteligente.values()))
 
 
+duplicado_inteligente = {}
+
+result = dup_intigente(registros, 'user_id', duplicado_inteligente)
+
+print(result)
 # SOLUCIÓN:
 def deduplicar_por_mas_reciente(registros, key_field, date_field):
     """Mantiene el registro más reciente para cada key"""
@@ -1118,6 +1148,14 @@ transacciones = [100, 105, 98, 102, 500, 99, 101, 97, 103, 1000]
 
 # TU CÓDIGO:
 
+import numpy as np 
+trans_np = np.array(transacciones)
+trans_np_mean = trans_np.mean()
+trans_np_std = trans_np.std(ddof=1)
+print(trans_np_std)
+
+anomalies = [t for t in transacciones if abs(t - trans_np_mean) > 2 * trans_np_std]
+print(anomalies)
 
 # SOLUCIÓN:
 import statistics
@@ -1165,7 +1203,76 @@ datos_crudos = [
 
 def pipeline_etl(lineas):
     # TU CÓDIGO:
-    pass
+    
+    #ETL
+    #extract
+    keys = lineas[0].split(",")
+    extracted = []
+    for l in lineas[1:]:
+        l = l.strip()
+        if not l : 
+            pass
+        else:
+            extracted.append(dict(zip(keys, l.split(","))))
+    print(f"extraido de datos crudos: {extracted}")
+    
+    #transform
+    tranfomed = []
+    errors = []
+    for ext in extracted:
+        try:
+            #limpiamos nombre
+            nombre = ''.join(ext.get('nombre','').strip().split())
+            nombre = nombre.title()
+            
+            email = ext.get('email','').strip()
+            if '@' not in email or not email:
+                email = None
+
+            monto = ext.get('monto','').strip()
+            if monto == 'N/A' or not monto:
+                monto = None
+            else:
+                try:
+                    monto =  float(monto.replace('$','').replace(',',''))
+                except ValueError as e:
+                    errors.append(f"monto de dato {ext} tiene error {e}")
+                    monto = None
+
+            tranfomed.append( {
+                'user_id': int(ext.get('id', -1)),
+                'nombre': nombre,
+                'email': email,
+                'monto': monto,
+                'is_valid': monto is not None and email is not None
+                })
+            
+        except Exception as e:
+            errors.append(f"dato {ext} tiene error {e}")
+    #load
+
+    validos = [r for r in tranfomed if r['is_valid']]
+    invalidos = [r for r in tranfomed if not r['es_valido']]
+
+    return {
+        'validos': validos,
+        'invalidos': invalidos,
+        'errores': errors
+    }
+
+resultado = pipeline_etl(datos_crudos)
+print("\nRegistros válidos:")
+for r in resultado['validos']:
+    print(f"  {r}")
+print("\nRegistros inválidos:")
+for r in resultado['invalidos']:
+    print(f"  {r}")
+
+
+
+
+datos_procesados = pipeline_etl(datos_crudos)
+print(datos_procesados)
 
 
 # SOLUCIÓN:
